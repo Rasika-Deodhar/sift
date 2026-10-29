@@ -6,14 +6,14 @@ import json
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .config import REPO_ROOT, get_settings
 from .db import Database
 from .meta_client import make_client
-from .models import SessionStartIn
+from .models import SessionStartIn, SignalIn
 from .session import SessionManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -75,6 +75,27 @@ async def session_stop() -> dict:
 async def session_clear() -> dict:
     await manager().clear()
     return {"ok": True}
+
+
+@app.post("/signal")
+async def signal(body: SignalIn) -> dict:
+    out = await manager().on_signal(body.item_id, body.type, body.value)
+    if not out["ok"]:
+        raise HTTPException(409, out["error"])
+    return out
+
+
+@app.get("/interest/versions")
+def interest_versions() -> dict:
+    return {"versions": manager().interest_versions()}
+
+
+@app.get("/interest/diff")
+def interest_diff(from_: int = Query(alias="from"), to: int = Query()) -> dict:
+    try:
+        return manager().interest_diff(from_, to)
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from e
 
 
 @app.get("/session/summary")

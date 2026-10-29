@@ -96,3 +96,19 @@ code { background: #0000000d; padding: 0 4px; border-radius: 4px; }
 .brief-list li { display: flex; gap: 10px; align-items: flex-start; }
 .brief-list img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; }
 .brief-list.compact li { opacity: .8; }
+.interest-strip { display: flex; flex-direction: column; gap: 6px; }
+.interest-strip p { margin: 0; }
+.chip.like { background: #e7f6ee; color: #145c3c; display: inline-flex; align-items: center; gap: 6px; }
+.chip.dislike { background: #f6ecec; color: #8a2b25; }
+.chip.flash { animation: flash 1.2s ease-out 2; box-shadow: 0 0 0 2px var(--hi-line); }
+@keyframes flash { 50% { background: var(--hi-line); } }
+.bar { display: inline-block; height: 5px; border-radius: 3px; background: currentColor; opacity: .5; }
+.up { color: var(--good); }
+.down { color: var(--bad); }
+.chip.delta.up { background: #dff3e8; color: var(--good); font-weight: 700; }
+.chip.delta.down { background: #fbe9e7; color: var(--bad); font-weight: 700; }
+.card.moved { box-shadow: 0 0 0 2px var(--hi-line); }
+.diff { border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+.diff th, .diff td { text-align: left; padding: 2px 12px 2px 0; }
+.diff th { font-weight: 600; color: var(--muted); }
+.changed-cause { font-style: italic; }

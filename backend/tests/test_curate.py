@@ -57,3 +57,10 @@ def test_scores_are_clamped():
     m = InterestModel(topic_weights={"cycling": 9.0}, format_weights={"tutorial": 9.0})
     assert curate.build_card("a", u(q=10), m).value_score <= 10
     assert curate.build_card("b", u(q=0, topics=("x",) * 1), InterestModel()).value_score >= 0
+
+
+def test_liking_a_topic_never_lowers_items_on_it():
+    for q in (2, 5, 8, 9.5):
+        cold = curate.build_card("a", u(q=q, topics=("cooking",)))
+        m = InterestModel(topic_weights={"cooking": 0.5}, format_weights={"tutorial": 0.3})
+        assert curate.rescore(cold, m).value_score >= cold.value_score

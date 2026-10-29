@@ -38,6 +38,8 @@ export interface UiItem {
   error?: string;
   duplicateOf?: string | null;
   userAction?: "save" | "hide" | "more_like_this" | "less_like_this";
+  /** Set when a re-rank moved this item; cleared after a few seconds by the UI. */
+  moved?: { from: number; to: number; at: number };
 }
 
 export interface InterestModel {

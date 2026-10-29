@@ -1,3 +1,4 @@
+import type { InterestChange } from "./api";
 import type { InterestModel, ItemCard, ItemStatus, UiItem } from "./types";
 
 export interface State {
@@ -5,9 +6,10 @@ export interface State {
   order: string[]; // first-seen order
   interest: InterestModel | null;
   prevInterest: InterestModel | null;
+  lastChange: { cause: string; changes: InterestChange[]; at: number } | null;
 }
 
-export const initialState: State = { items: {}, order: [], interest: null, prevInterest: null };
+export const initialState: State = { items: {}, order: [], interest: null, prevInterest: null, lastChange: null };
 
 export type Action =
   | { type: "detected"; id: string; thumb: string | null; at: number }
@@ -15,8 +17,9 @@ export type Action =
   | { type: "dwell"; id: string; dwellMs: number }
   | { type: "status"; id: string; status: ItemStatus; error?: string; duplicateOf?: string | null }
   | { type: "card"; card: ItemCard; status?: ItemStatus }
+  | { type: "rerank"; card: ItemCard; prevScore: number }
   | { type: "action"; id: string; action: UiItem["userAction"] }
-  | { type: "interest"; model: InterestModel }
+  | { type: "interest"; model: InterestModel; cause?: string; changes?: InterestChange[] }
   | { type: "hydrate"; items: UiItem[]; cards: ItemCard[]; interest: InterestModel | null }
   | { type: "reset" };
 
@@ -50,12 +53,22 @@ export function reducer(s: State, a: Action): State {
       const items: Record<string, UiItem> = {};
       for (const it of a.items) items[it.id] = it;
       for (const c of a.cards) if (items[c.item_id]) items[c.item_id].card = c;
-      return { items, order: a.items.map((i) => i.id), interest: a.interest, prevInterest: null };
+      return { items, order: a.items.map((i) => i.id), interest: a.interest, prevInterest: null, lastChange: null };
     }
     case "action":
       return patch(a.id, { userAction: a.action });
     case "interest":
-      return { ...s, prevInterest: s.interest, interest: a.model };
+      return {
+        ...s,
+        prevInterest: s.interest,
+        interest: a.model,
+        lastChange: a.changes?.length ? { cause: a.cause ?? "", changes: a.changes, at: Date.now() } : s.lastChange,
+      };
+    case "rerank":
+      return patch(a.card.item_id, {
+        card: a.card,
+        moved: { from: a.prevScore, to: a.card.value_score, at: Date.now() },
+      });
     case "reset":
       return initialState;
   }

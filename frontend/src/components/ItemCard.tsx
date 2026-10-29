@@ -18,7 +18,7 @@ const STATUS_TEXT: Record<string, string> = {
 
 function scoreTitle(b: Record<string, number>): string {
   const parts = [`Value score (0-10)`, `quality ${b.quality ?? "?"}/10`];
-  if (b.confidence) parts.push(`interest fit ${b.fit >= 0 ? "+" : ""}${b.fit} (weight ${Math.round(b.confidence * 50)}%)`);
+  if (b.fit_points) parts.push(`interest fit ${b.fit_points >= 0 ? "+" : ""}${b.fit_points}`);
   if (b.novelty_penalty) parts.push(`repeat penalty -${b.novelty_penalty}`);
   return parts.join("\n");
 }
@@ -27,8 +27,12 @@ export default function ItemCardView({ item, live, liveDwellMs, onSignal, compac
   const c = item.card;
   const dwell = ((live ? liveDwellMs ?? item.dwellMs : item.dwellMs) / 1000).toFixed(1);
   const tier = c?.tier ?? "pending";
+  const moved = item.moved && Date.now() - item.moved.at < 6000 ? item.moved : null;
   return (
-    <article data-item-id={item.id} className={`card tier-${tier} ${live ? "live" : ""} ${compact ? "compact" : ""}`}>
+    <article
+      data-item-id={item.id}
+      className={`card tier-${tier} ${live ? "live" : ""} ${compact ? "compact" : ""} ${moved ? "moved" : ""}`}
+    >
       <div className="thumb">{item.thumb ? <img src={item.thumb} alt="" /> : <div className="ph" />}</div>
       <div className="body">
         <div className="row top">
@@ -39,6 +43,11 @@ export default function ItemCardView({ item, live, liveDwellMs, onSignal, compac
                 {c.value_score.toFixed(1)}
               </span>
               {tier === "highlight" && <span className="chip pick">Sift pick</span>}
+              {moved && (
+                <span className={`chip delta ${moved.to > moved.from ? "up" : "down"}`} title="Re-ranked after your feedback">
+                  {moved.to > moved.from ? "▲" : "▼"} {moved.from.toFixed(1)} → {moved.to.toFixed(1)}
+                </span>
+              )}
             </>
           ) : (
             <span className={`chip status ${item.status}`}>{STATUS_TEXT[item.status] ?? item.status}</span>

@@ -22,3 +22,9 @@ Hackathon building window (Oct 27 to Nov 4, 2026).
   fit notes ("Matches your interest in cycling"); score breakdown tooltip; Skipped group that
   expands to show why; session digest endpoint with an optional Muse Spark narrative; stats
   panel; thumbnails auto-cropped to the post.
+- M4 Learn from behavior: interest model with topic/format weights, exponential decay
+  (10-minute half-life), dwell bands (quick skip / neutral / long dwell) and quick actions
+  (save, hide, more, less), versioned per change; `POST /signal`, `GET /interest/versions`,
+  `GET /interest/diff`; live re-ranking pushes `item_update`s; interest strip with "what
+  changed" flashes and a before/after table; re-ranked cards show their score delta. Fixed the
+  score blend so liking a topic can only raise items on it.

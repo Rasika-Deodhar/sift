@@ -13,6 +13,7 @@ from typing import Any
 
 from fastapi import WebSocket
 
+from . import interest as interest_mod
 from .config import Settings
 from .db import Database
 from .meta_client import MetaAPIError, ModelClient, RateLimited, decode_data_url
@@ -22,6 +23,8 @@ from .models import (
     ItemCard,
     ItemStatus,
     Session,
+    Signal,
+    SignalType,
     UnderstandResult,
     now_ms,
 )
@@ -50,6 +53,8 @@ class SessionManager:
         self.items: dict[str, Item] = {}
         self.queue = self._new_queue()
         self._lock = asyncio.Lock()
+        self._learn_lock = asyncio.Lock()
+        self._dwell_applied: set[str] = set()
 
     def _new_queue(self) -> ItemQueue:
         return ItemQueue(
@@ -98,6 +103,7 @@ class SessionManager:
         self.queue = self._new_queue()
         self.cache.clear()
         self.items.clear()
+        self._dwell_applied.clear()
 
     async def shutdown(self) -> None:
         await self.queue.stop()
@@ -149,6 +155,9 @@ class SessionManager:
             await self.on_item_frames(msg)
         elif kind == "dwell":
             await self.on_dwell(str(msg["item_id"]), int(msg.get("dwell_ms", 0)))
+        elif kind == "signal":
+            await self.on_signal(str(msg["item_id"]), SignalType(msg["signal"]),
+                                 float(msg.get("value", 1.0)))
         elif kind == "ping":
             return
         else:
@@ -197,6 +206,74 @@ class SessionManager:
         item.dwell_ms = max(item.dwell_ms, dwell_ms)
         item.last_seen_at = now_ms()
         self.db.upsert_item(item)
+        await self._maybe_learn_dwell(item)
+
+    # --- learning ------------------------------------------------------------------------
+
+    async def on_signal(self, item_id: str, kind: SignalType, value: float = 1.0) -> dict:
+        """Quick action from the UI (save / hide / more / less)."""
+        if self.session is None:
+            return {"ok": False, "error": "no session"}
+        card = self.db.get_card(item_id)
+        if card is None:
+            return {"ok": False, "error": "item not analyzed yet"}
+        await self._learn(Signal(item_id=item_id, type=kind, value=value), card)
+        return {"ok": True, "interest": self.interest.model_dump()}
+
+    async def _maybe_learn_dwell(self, item: Item) -> None:
+        """Dwell is learned once per item, when both the dwell and the card are known."""
+        if item.id in self._dwell_applied or item.dwell_ms <= 0:
+            return
+        card = self.db.get_card(item.id)
+        if card is None:
+            return
+        self._dwell_applied.add(item.id)
+        await self._learn(Signal(item_id=item.id, type=SignalType.dwell, value=item.dwell_ms),
+                          card)
+
+    async def _learn(self, sig: Signal, card: ItemCard) -> None:
+        assert self.session is not None
+        async with self._learn_lock:
+            self.db.add_signal(self.session.id, sig)
+            new, changes = interest_mod.apply_signal(self.interest, card, sig)
+            if not changes:
+                return  # neutral signal (e.g. medium dwell): nothing learned
+            cause = interest_mod.describe_cause(sig, card)
+            self.interest = new
+            self.db.save_interest_version(self.session.id, new, cause)
+            await self.broadcast({
+                "type": "interest_update", "model": new.model_dump(), "cause": cause,
+                "signal": sig.type.value, "item_id": sig.item_id,
+                "changes": [c.as_dict() for c in changes],
+            })
+            await self._rerank()
+
+    async def _rerank(self) -> None:
+        """Re-scores every card against the new interest model; pushes the ones that moved."""
+        assert self.session is not None
+        for card in self.db.list_cards(self.session.id):
+            new = curate.rescore(card, self.interest)
+            if new.tier != card.tier or abs(new.value_score - card.value_score) >= 0.1:
+                self.db.save_card(self.session.id, new, now_ms())
+                await self.broadcast({"type": "item_update", "card": new.model_dump(),
+                                      "prev_score": card.value_score, "prev_tier": card.tier})
+
+    def interest_versions(self) -> list[dict]:
+        if self.session is None:
+            return []
+        return [
+            {"version": m.version, "cause": cause, "created_at": m.updated_at,
+             "top_topics": sorted(m.topic_weights.items(), key=lambda kv: -kv[1])[:5],
+             "model": m.model_dump()}
+            for m, cause in self.db.list_interest_versions(self.session.id)
+        ]
+
+    def interest_diff(self, a: int, b: int) -> dict:
+        versions = {v["version"]: v["model"] for v in self.interest_versions()}
+        if a not in versions or b not in versions:
+            raise KeyError("unknown version")
+        ma, mb = InterestModel(**versions[a]), InterestModel(**versions[b])
+        return {"from": a, "to": b, "changes": interest_mod.diff(ma, mb)}
 
     # --- pipeline ------------------------------------------------------------------------
 
@@ -256,3 +333,4 @@ class SessionManager:
         self.db.save_card(self.session.id, card, now_ms())
         await self.broadcast({"type": "item_card", "card": card.model_dump(),
                               "status": status.value, "duplicate_of": item.duplicate_of})
+        await self._maybe_learn_dwell(item)

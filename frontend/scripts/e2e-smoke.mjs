@@ -39,13 +39,24 @@ await feed.waitForTimeout(2500);
 await feed.evaluate((i) => document.querySelectorAll(".post")[i].scrollIntoView({ behavior: "smooth" }), posts - 2);
 await feed.waitForTimeout(Number(process.env.SETTLE_MS ?? 6000));
 if (debug) console.log("feed position", await feed.evaluate(() => { const f = document.getElementById("feed"); return [f.scrollTop, f.clientHeight, f.scrollHeight]; }));
+// Learning loop: Save one item, Hide another; the interest strip must show learned topics.
+const saveBtn = sift.getByRole("button", { name: "Save" }).first();
+if (await saveBtn.count()) {
+  await saveBtn.click();
+  await sift.getByRole("button", { name: "Hide" }).last().click();
+  await sift.locator(".interest-strip .chip.like").first().waitFor({ timeout: 5000 });
+}
 if (shots) await sift.screenshot({ path: `${shots}/sift.png`, fullPage: true });
+const skippedN = Number((await sift.locator(".skipped-toggle").textContent().catch(() => ""))?.match(/Skipped \((\d+)\)/)?.[1] ?? 0);
+if (skippedN) await sift.locator(".skipped-toggle").click(); // expand so every item is countable
 const summary = await sift.evaluate(() => ({
   detected: document.querySelectorAll("[data-item-id]").length,
   revisited: [...document.querySelectorAll("[data-item-id]")].filter((e) => /[2-9] visits/.test(e.textContent ?? "")).length,
   cards: document.querySelectorAll("[data-item-id] .reason").length,
+  likes: [...document.querySelectorAll(".interest-strip .chip.like")].map((e) => e.textContent),
+  reranked: document.querySelectorAll(".chip.delta").length,
   picks: document.querySelectorAll(".tier-highlight").length,
-  skipped: Number(document.querySelector(".skipped-toggle")?.textContent?.match(/Skipped \((\d+)\)/)?.[1] ?? 0),
+  failed: document.querySelectorAll(".failed [data-item-id]").length,
   reasons: [...document.querySelectorAll("[data-item-id] .reason")].map((e) => e.textContent).slice(0, 12),
 }));
 console.log(JSON.stringify(summary, null, 1));
@@ -53,10 +64,9 @@ await sift.getByRole("button", { name: "Stop" }).click();
 await sift.getByRole("button", { name: "Start Sift" }).waitFor({ timeout: 5000 });
 console.log("stopped OK");
 await browser.close();
-// Items collapsed into "Skipped" are not rendered until expanded, so count them too.
-const total = summary.detected + summary.skipped;
+summary.skipped = skippedN;
 const expectCards = process.env.EXPECT_CARDS !== "0";
-if (total !== posts + 1 || summary.revisited < 1 || (expectCards && summary.cards + summary.skipped < posts + 1)) {
+if (summary.detected !== posts + 1 || summary.revisited < 1 || (expectCards && summary.cards < posts + 1)) {
   console.error(`expected ${posts + 1} items (all analyzed) and a revisit; got ${JSON.stringify(summary)}`);
   process.exit(1);
 }

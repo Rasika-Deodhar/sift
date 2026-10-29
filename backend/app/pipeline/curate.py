@@ -1,11 +1,12 @@
 """Scoring and presentation tiers.
 
-value_score (0-10) blends:
-  (a) intrinsic quality from Muse Spark (substance vs. clickbait), and
-  (b) fit with the interest model (topic + format weights, plus the optional focus hint),
-weighted by how much Sift has learned so far (cold start = quality only), minus a novelty
-penalty for near-repeats of what was just shown. Every number is kept in score_breakdown so the
-UI can explain the decision.
+value_score (0-10) =
+    intrinsic quality from Muse Spark (substance vs. clickbait)
+  + up to +/-FIT_POINTS for fit with the interest model (topic + format weights and the optional
+    focus hint), scaled by how much Sift has learned so far (cold start: quality only)
+  - a novelty penalty for near-repeats of what was just shown.
+Liking a topic can only raise items on that topic, never lower them. Every number is kept in
+score_breakdown so the UI can explain the decision.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from ..models import InterestModel, ItemCard, UnderstandResult
 
 HIGHLIGHT_AT = 7.0
 SKIP_BELOW = 4.5
-MAX_FIT_WEIGHT = 0.5  # at full confidence, interest fit is half of the score
+FIT_POINTS = 3.0  # at full confidence, interest fit moves a score by up to 3 points
 NOVELTY_WINDOW = 8
 
 
@@ -94,14 +95,14 @@ def score(
     q = max(0.0, min(10.0, quality))
     fit, note = interest_fit(topics, fmt, m)
     conf = interest_confidence(m)
-    w = MAX_FIT_WEIGHT * conf
+    fit_points = FIT_POINTS * conf * fit
     nov = novelty_penalty(topics, recent_topics)
-    value = (1 - w) * q + w * (5 + 5 * fit) - nov
-    value = round(max(0.0, min(10.0, value)), 1)
+    value = round(max(0.0, min(10.0, q + fit_points - nov)), 1)
     breakdown = {
         "quality": round(q, 2),
         "fit": round(fit, 3),
         "confidence": round(conf, 3),
+        "fit_points": round(fit_points, 2),
         "novelty_penalty": round(nov, 2),
     }
     return value, breakdown, note

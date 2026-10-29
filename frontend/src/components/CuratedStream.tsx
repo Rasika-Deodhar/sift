@@ -20,7 +20,10 @@ export default function CuratedStream({ items, liveId, liveDwell, onSignal }: Pr
   const pending = items.filter((i) => !i.card && i.status !== "dropped" && i.status !== "error");
   const failed = items.filter((i) => !i.card && (i.status === "dropped" || i.status === "error"));
   const skipped = items.filter((i) => i.card && (i.card.tier === "skipped" || i.userAction === "hide"));
-  const picks = visible.filter((i) => i.card!.tier === "highlight");
+  // Picks are ordered by value (they re-order live as Sift learns); the rest stay newest first.
+  const picks = visible
+    .filter((i) => i.card!.tier === "highlight")
+    .sort((a, b) => b.card!.value_score - a.card!.value_score);
   const rest = visible.filter((i) => i.card!.tier !== "highlight");
   const card = (i: UiItem, compact = false) => (
     <ItemCardView

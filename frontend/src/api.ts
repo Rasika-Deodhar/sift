@@ -15,7 +15,7 @@ export type ServerMessage =
   | { type: "session"; session: { id: string; stopped_at: number | null } }
   | { type: "item_status"; item_id: string; status: ItemStatus; duplicate_of?: string | null; error?: string | null }
   | { type: "item_card"; card: ItemCard; status: ItemStatus; duplicate_of?: string | null }
-  | { type: "item_update"; card: ItemCard }
+  | { type: "item_update"; card: ItemCard; prev_score: number; prev_tier: string }
   | { type: "interest_update"; model: InterestModel; cause: string; changes?: InterestChange[] }
   | { type: "cleared" }
   | { type: "error"; message: string };
@@ -62,6 +62,7 @@ export const api = {
   signal: (item_id: string, type: string) => post("/signal", { item_id, type }),
   summary: <T>(narrative = false) => get<T>(`/session/summary${narrative ? "?narrative=true" : ""}`),
   interestVersions: <T>() => get<T>("/interest/versions"),
+  interestDiff: <T>(from: number, to: number) => get<T>(`/interest/diff?from=${from}&to=${to}`),
 };
 
 /** WebSocket with automatic reconnect and a small send buffer while disconnected. */

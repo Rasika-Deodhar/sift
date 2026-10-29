@@ -3,6 +3,7 @@ import { api, StreamSocket, type ServerMessage } from "./api";
 import { CaptureSession } from "./capture/captureSession";
 import Controls from "./components/Controls";
 import CuratedStream from "./components/CuratedStream";
+import InterestStrip from "./components/InterestStrip";
 import SessionSummary from "./components/SessionSummary";
 import { initialState, reducer, type Action } from "./store";
 import type { UiItem } from "./types";
@@ -33,9 +34,9 @@ function toAction(m: ServerMessage): Action | null {
     case "item_card":
       return { type: "card", card: m.card, status: m.status };
     case "item_update":
-      return { type: "card", card: m.card };
+      return { type: "rerank", card: m.card, prevScore: m.prev_score };
     case "interest_update":
-      return { type: "interest", model: m.model };
+      return { type: "interest", model: m.model, cause: m.cause, changes: m.changes };
     case "cleared":
       return { type: "reset" };
     default:
@@ -173,6 +174,7 @@ export default function App() {
           </button>
         </aside>
         <main className="stream">
+          <InterestStrip interest={state.interest} lastChange={state.lastChange} />
           <CuratedStream items={items} liveId={liveId} liveDwell={liveDwell} onSignal={onSignal} />
         </main>
       </div>
