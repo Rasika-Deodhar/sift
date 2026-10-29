@@ -1,0 +1,22 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0e0e10; color: #f2f2f2;
+  font-family: "Inter", system-ui, -apple-system, sans-serif; }
+.topbar { position: fixed; top: 0; left: 0; right: 0; height: 48px; z-index: 5;
+  display: flex; align-items: center; gap: 16px; padding: 0 16px;
+  background: #0e0e10ee; border-bottom: 1px solid #222; }
+.logo { font-weight: 800; letter-spacing: .5px; }
+.note { font-size: 12px; color: #888; }
+/* One post per viewport with scroll-snap: each post settles in place, which makes
+   scene-change detection in Sift reliable during the demo. */
+.feed { height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; padding-top: 48px; }
+.post { height: calc(100vh - 48px); scroll-snap-align: start; display: flex;
+  align-items: center; justify-content: center; padding: 16px; }
+.card { width: min(440px, 100%); max-height: 100%; background: #18181b; border: 1px solid #2a2a2e;
+  border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+.head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-weight: 600; font-size: 14px; }
+.avatar { width: 30px; height: 30px; border-radius: 50%; }
+.media { width: 100%; aspect-ratio: 1 / 1; display: block; background: #000; }
+.media.reel { aspect-ratio: 9 / 16; max-height: 62vh; object-fit: cover; }
+.meta { padding: 10px 12px 14px; font-size: 14px; line-height: 1.4; }
+.likes { font-weight: 700; margin-bottom: 4px; }
+.badge { font-size: 11px; color: #aaa; border: 1px solid #444; border-radius: 6px; padding: 1px 6px; margin-left: auto; }
