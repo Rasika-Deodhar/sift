@@ -2,7 +2,8 @@
 
 Everything in these clips (text, colors, voice) is synthesized locally, so the project owns it.
 Run from the repo root:  python demo_feed/tools/make_reels.py
-Requires an ffmpeg build with the `flite` and `drawtext` filters.
+Requires an ffmpeg build with the `flite` and `drawtext` filters, libx264, libvpx and libopus.
+Both MP4 (H.264) and WebM (VP9) are written so every browser can play them.
 """
 
 import shutil
@@ -89,7 +90,15 @@ def make(reel: dict, tmp: Path) -> None:
         ],
         check=True,
     )
-    print("wrote", out, out.stat().st_size // 1024, "KB")
+    webm = out.with_suffix(".webm")
+    subprocess.run(
+        ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(out),
+         "-c:v", "libvpx-vp9", "-crf", "42", "-b:v", "0", "-row-mt", "1", "-deadline", "realtime",
+         "-c:a", "libopus", "-b:a", "40k", str(webm)],
+        check=True,
+    )
+    for f in (out, webm):
+        print("wrote", f, f.stat().st_size // 1024, "KB")
 
 
 if __name__ == "__main__":

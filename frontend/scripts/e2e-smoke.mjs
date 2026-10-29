@@ -1,0 +1,56 @@
+// End-to-end smoke test: opens the Demo Feed and Sift in one Chromium window, starts Sift,
+// auto-selects the Demo Feed tab in the screen-share picker, scrolls, and checks the stream.
+// Needs `make dev` running. Usage: node frontend/scripts/e2e-smoke.mjs [--shots DIR]
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { chromium } = require("playwright");
+
+const BASE = process.env.SIFT_URL ?? "http://localhost:5173";
+const shots = process.argv.includes("--shots") ? process.argv[process.argv.indexOf("--shots") + 1] : null;
+const posts = Number(process.env.POSTS ?? 6);
+
+const browser = await chromium.launch({
+  headless: true,
+  channel: "chromium", // full Chromium (new headless); the headless shell lacks getDisplayMedia
+  args: [
+    "--auto-select-tab-capture-source-by-title=Sift Demo Feed",
+    "--autoplay-policy=no-user-gesture-required",
+  ],
+});
+const ctx = await browser.newContext({ viewport: { width: 1200, height: 860 } });
+const feed = await ctx.newPage();
+await feed.goto(`${BASE}/demo/`);
+const sift = await ctx.newPage();
+const debug = !!process.env.SIFT_DEBUG;
+sift.on("console", (m) => (m.type() === "error" || (debug && m.type() === "debug")) && console.log("[sift console]", m.text()));
+await sift.goto(BASE);
+if (debug) await sift.evaluate(() => { window.__siftDebug = true; });
+await sift.getByRole("button", { name: "Start Sift" }).click();
+await sift.getByRole("button", { name: /choose what to share/ }).click();
+await sift.locator(".sharing-pill").waitFor({ timeout: 10000 });
+console.log("sharing started");
+
+for (let i = 1; i <= posts; i++) {
+  await feed.waitForTimeout(i % 2 ? 3000 : 1800);
+  await feed.evaluate((i) => document.querySelectorAll(".post")[i].scrollIntoView({ behavior: "smooth" }), i);
+}
+// Scroll back up to an earlier post: it must be recognized as a revisit, not a new item.
+await feed.waitForTimeout(2500);
+await feed.evaluate((i) => document.querySelectorAll(".post")[i].scrollIntoView({ behavior: "smooth" }), posts - 2);
+await feed.waitForTimeout(Number(process.env.SETTLE_MS ?? 6000));
+if (debug) console.log("feed position", await feed.evaluate(() => { const f = document.getElementById("feed"); return [f.scrollTop, f.clientHeight, f.scrollHeight]; }));
+if (shots) await sift.screenshot({ path: `${shots}/sift.png`, fullPage: true });
+const summary = await sift.evaluate(() => ({
+  detected: document.querySelectorAll("[data-item-id]").length,
+  revisited: [...document.querySelectorAll("[data-item-id]")].filter((e) => /visits [2-9]/.test(e.textContent ?? "")).length,
+  text: document.querySelector(".stream")?.textContent?.slice(0, 400),
+}));
+console.log(JSON.stringify(summary, null, 1));
+await sift.getByRole("button", { name: "Stop" }).click();
+await sift.getByRole("button", { name: "Start Sift" }).waitFor({ timeout: 5000 });
+console.log("stopped OK");
+await browser.close();
+if (summary.detected !== posts + 1 || summary.revisited < 1) {
+  console.error(`expected ${posts + 1} items and a revisit, saw ${summary.detected} / ${summary.revisited}`);
+  process.exit(1);
+}

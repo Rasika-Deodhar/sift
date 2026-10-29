@@ -1,4 +1,4 @@
-.PHONY: setup dev backend frontend test lint fixtures reels
+.PHONY: setup dev backend frontend test lint e2e fixtures reels
 
 PY := backend/.venv/bin/python
 
@@ -35,7 +35,11 @@ lint: backend/.venv frontend/node_modules
 	cd backend && .venv/bin/ruff check app tests
 	cd frontend && npx tsc -b
 
-# Re-record scene-change fixtures from the Demo Feed (needs Playwright + a running backend).
+# Browser end-to-end smoke test (needs `make dev` running in another terminal).
+e2e:
+	node frontend/scripts/e2e-smoke.mjs
+
+# Re-record scene-change fixtures from the Demo Feed (needs Playwright).
 fixtures:
 	node frontend/scripts/record-fixtures.mjs
 

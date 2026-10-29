@@ -41,7 +41,9 @@
 
   for (const p of window.SIFT_DEMO_POSTS) {
     const media = p.kind === "reel"
-      ? `<video class="media reel" src="${p.src}" loop playsinline preload="auto"></video>`
+      ? `<video class="media reel" loop playsinline preload="auto">
+         <source src="${p.src.replace(/\.mp4$/, ".webm")}" type="video/webm" />
+         <source src="${p.src}" type="video/mp4" /></video>`
       : art(p);
     const el = document.createElement("section");
     el.className = "post";
