@@ -49,13 +49,16 @@ if (await saveBtn.count()) {
 }
 if (shots) await sift.screenshot({ path: `${shots}/sift.png`, fullPage: true });
 // Categorize: lanes view groups the same items.
-await sift.getByRole("button", { name: "Categorize" }).click();
-await sift.locator(".lane").first().waitFor({ timeout: 3000 });
-const lanes = await sift.evaluate(() =>
-  [...document.querySelectorAll(".lane")].map((l) => `${l.getAttribute("data-lane")}:${l.querySelector(".lane-count")?.textContent}`),
-);
-if (shots) await sift.screenshot({ path: `${shots}/lanes.png`, fullPage: true });
-await sift.getByRole("button", { name: "Categorize" }).click();
+let lanes = [];
+if (await sift.locator("[data-item-id] .reason").count()) {
+  await sift.getByRole("button", { name: "Categorize" }).click();
+  await sift.locator(".lane").first().waitFor({ timeout: 3000 });
+  lanes = await sift.evaluate(() =>
+    [...document.querySelectorAll(".lane")].map((l) => `${l.getAttribute("data-lane")}:${l.querySelector(".lane-count")?.textContent}`),
+  );
+  if (shots) await sift.screenshot({ path: `${shots}/lanes.png`, fullPage: true });
+  await sift.getByRole("button", { name: "Categorize" }).click();
+}
 const skippedN = Number((await sift.locator(".skipped-toggle").textContent().catch(() => ""))?.match(/Skipped \((\d+)\)/)?.[1] ?? 0);
 if (skippedN) await sift.locator(".skipped-toggle").click(); // expand so every item is countable
 const summary = await sift.evaluate(() => ({

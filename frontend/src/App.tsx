@@ -167,6 +167,7 @@ export default function App() {
         </div>
       )}
       {error && <div className="banner error" onClick={() => setError(null)}>{error}</div>}
+      <ModelErrorBanner items={items} />
       <div className="layout">
         <aside className="side">
           <div className="preview">
@@ -229,6 +230,19 @@ function StatsPanel({ items, pipeline }: { items: UiItem[]; pipeline: PipelineSt
       {pipeline && pipeline.cache_hits > 0 && (
         <p className="muted small working">{pipeline.cache_hits} repeat{pipeline.cache_hits > 1 ? "s" : ""} served from cache</p>
       )}
+    </div>
+  );
+}
+
+/** Makes repeated model failures (bad key, network, rate limits) obvious instead of silent. */
+function ModelErrorBanner({ items }: { items: UiItem[] }) {
+  const failed = items.filter((i) => i.status === "error");
+  const recent = items.slice(0, 6);
+  if (failed.length < 2 || recent.some((i) => i.card)) return null;
+  return (
+    <div className="banner error" role="alert">
+      {failed.length} items could not be analyzed by Muse Spark: {failed[0].error ?? "unknown error"}. Check{" "}
+      <code>MODEL_API_KEY</code> and the backend log.
     </div>
   );
 }
