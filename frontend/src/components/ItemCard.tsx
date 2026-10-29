@@ -16,6 +16,13 @@ const STATUS_TEXT: Record<string, string> = {
   error: "Could not analyze",
 };
 
+function scoreTitle(b: Record<string, number>): string {
+  const parts = [`Value score (0-10)`, `quality ${b.quality ?? "?"}/10`];
+  if (b.confidence) parts.push(`interest fit ${b.fit >= 0 ? "+" : ""}${b.fit} (weight ${Math.round(b.confidence * 50)}%)`);
+  if (b.novelty_penalty) parts.push(`repeat penalty -${b.novelty_penalty}`);
+  return parts.join("\n");
+}
+
 export default function ItemCardView({ item, live, liveDwellMs, onSignal, compact }: Props) {
   const c = item.card;
   const dwell = ((live ? liveDwellMs ?? item.dwellMs : item.dwellMs) / 1000).toFixed(1);
@@ -28,7 +35,7 @@ export default function ItemCardView({ item, live, liveDwellMs, onSignal, compac
           {c ? (
             <>
               <span className="chip cat">{c.category}</span>
-              <span className={`score s${Math.round(c.value_score)}`} title="Value score (0-10)">
+              <span className={`score s${Math.round(c.value_score)}`} title={scoreTitle(c.score_breakdown)}>
                 {c.value_score.toFixed(1)}
               </span>
               {tier === "highlight" && <span className="chip pick">Sift pick</span>}
@@ -45,7 +52,9 @@ export default function ItemCardView({ item, live, liveDwellMs, onSignal, compac
         {c ? (
           <>
             <p className="reason">{c.reason}</p>
+            {c.fit_note && <p className="fit-note">↳ {c.fit_note}</p>}
             {!compact && <p className="summary muted">{c.summary}</p>}
+            {compact && <p className="summary muted small">{c.summary}</p>}
             {c.evidence_snippet && !compact && <blockquote className="evidence">“{c.evidence_snippet}”</blockquote>}
             {!compact && (
               <div className="row tags">

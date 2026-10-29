@@ -80,7 +80,7 @@ export class CaptureSession {
           phash: ev.hash,
           sig: colorSignature(rgba),
           frame: ev.isNew ? this.sampler.grabFrame() : null,
-          thumb: ev.isNew ? this.sampler.grabThumb() : null,
+          thumb: ev.isNew ? this.sampler.grabThumb(rgba) : null,
           at: Date.now(),
         });
       } else if (ev.kind === "leave") {

@@ -3,6 +3,7 @@ import { api, StreamSocket, type ServerMessage } from "./api";
 import { CaptureSession } from "./capture/captureSession";
 import Controls from "./components/Controls";
 import CuratedStream from "./components/CuratedStream";
+import SessionSummary from "./components/SessionSummary";
 import { initialState, reducer, type Action } from "./store";
 import type { UiItem } from "./types";
 
@@ -48,6 +49,7 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [server, setServer] = useState<{ mock: boolean; modelReady: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
   const capture = useRef<CaptureSession | null>(null);
   const socket = useRef<StreamSocket | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -101,6 +103,7 @@ export default function App() {
             previewRef.current?.replaceChildren();
             setSharing(false);
             api.stopSession().catch(() => {});
+            setShowSummary(true);
           },
         },
         async () => {
@@ -164,11 +167,33 @@ export default function App() {
             <div className="preview-slot" ref={previewRef} />
             {!sharing && <p className="muted">Live preview appears here while sharing.</p>}
           </div>
+          <StatsPanel items={items} />
+          <button className="btn" disabled={items.length === 0} onClick={() => setShowSummary(true)}>
+            Session digest
+          </button>
         </aside>
         <main className="stream">
           <CuratedStream items={items} liveId={liveId} liveDwell={liveDwell} onSignal={onSignal} />
         </main>
       </div>
+      {showSummary && <SessionSummary onClose={() => setShowSummary(false)} />}
+    </div>
+  );
+}
+
+function StatsPanel({ items }: { items: UiItem[] }) {
+  const analyzed = items.filter((i) => i.card);
+  const picks = analyzed.filter((i) => i.card!.tier === "highlight").length;
+  const skipped = analyzed.filter((i) => i.card!.tier === "skipped" || i.userAction === "hide").length;
+  const working = items.filter((i) => i.status === "queued" || i.status === "processing").length;
+  return (
+    <div className="panel stats-panel">
+      <div className="stats">
+        <div className="stat"><div className="n">{items.length}</div><div className="muted small">seen</div></div>
+        <div className="stat"><div className="n">{picks}</div><div className="muted small">picks</div></div>
+        <div className="stat"><div className="n">{skipped}</div><div className="muted small">skipped</div></div>
+      </div>
+      {working > 0 && <p className="muted small working">Understanding {working} item{working > 1 ? "s" : ""} with Muse Spark…</p>}
     </div>
   );
 }

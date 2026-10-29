@@ -17,3 +17,8 @@ Hackathon building window (Oct 27 to Nov 4, 2026).
   Pydantic validation with one retry, phash + color-signature dedup cache, bounded newest-first
   queue with backpressure and stale drops, session manager and WebSocket protocol, live stream
   cards in the UI.
+- M3 Curate: value score = intrinsic quality blended with interest fit (weighted by how much
+  Sift has learned) minus a novelty penalty for near-repeats; highlight / normal / skipped tiers;
+  fit notes ("Matches your interest in cycling"); score breakdown tooltip; Skipped group that
+  expands to show why; session digest endpoint with an optional Muse Spark narrative; stats
+  panel; thumbnails auto-cropped to the post.

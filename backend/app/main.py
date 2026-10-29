@@ -77,6 +77,11 @@ async def session_clear() -> dict:
     return {"ok": True}
 
 
+@app.get("/session/summary")
+async def session_summary(narrative: bool = False) -> dict:
+    return await manager().summary(narrative)
+
+
 @app.websocket("/stream")
 async def stream(ws: WebSocket) -> None:
     m = manager()

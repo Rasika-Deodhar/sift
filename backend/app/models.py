@@ -122,6 +122,7 @@ class ItemCard(BaseModel):
     evidence_snippet: str = ""
     tier: Literal["highlight", "normal", "skipped"] = "normal"
     score_breakdown: dict[str, float] = Field(default_factory=dict)
+    fit_note: str = ""  # e.g. "Matches your interest in cycling" (from the interest model)
 
 
 class InterestModel(BaseModel):

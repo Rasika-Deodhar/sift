@@ -24,6 +24,7 @@ export interface ItemCard {
   evidence_snippet: string;
   tier: Tier;
   score_breakdown: Record<string, number>;
+  fit_note: string;
 }
 
 export interface UiItem {

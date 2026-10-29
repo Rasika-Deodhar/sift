@@ -60,7 +60,7 @@ export const api = {
   stopSession: () => post("/session/stop"),
   clearSession: () => post("/session/clear"),
   signal: (item_id: string, type: string) => post("/signal", { item_id, type }),
-  summary: <T>() => get<T>("/session/summary"),
+  summary: <T>(narrative = false) => get<T>(`/session/summary${narrative ? "?narrative=true" : ""}`),
   interestVersions: <T>() => get<T>("/interest/versions"),
 };
 

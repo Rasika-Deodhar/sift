@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "./__fixtures__/demo-feed-scroll.json";
-import { classifyMotion, dHash, HASH_BITS, HASH_H, HASH_W, hashDistance, SceneDetector, type DetectorEvent } from "./sceneChange";
+import { classifyMotion, contentBox, dHash, HASH_BITS, HASH_H, HASH_W, hashDistance, SceneDetector, type DetectorEvent } from "./sceneChange";
 import { DwellTracker } from "./dwell";
 
 const decode = (b64: string) => Uint8ClampedArray.from(atob(b64), (c) => c.charCodeAt(0));
@@ -126,5 +126,25 @@ describe("SceneDetector unit behavior", () => {
     det.feed(view(0), 250);
     det.feed(view(0), 500);
     expect(det.feed(view(8), 750)).toMatchObject([{ kind: "leave", itemId: "a" }]);
+  });
+});
+
+describe("contentBox", () => {
+  it("finds a card on a uniform background", () => {
+    const rgba = new Uint8ClampedArray(HASH_W * HASH_H * 4);
+    for (let y = 0; y < HASH_H; y++)
+      for (let x = 0; x < HASH_W; x++) {
+        const i = (y * HASH_W + x) * 4;
+        const inCard = x >= 12 && x <= 20 && y >= 4 && y <= 26;
+        rgba.set(inCard ? [200, 120, 40, 255] : [14, 14, 16, 255], i);
+      }
+    const b = contentBox(rgba)!;
+    expect(b.x).toBeCloseTo(11 / HASH_W);
+    expect(b.w).toBeCloseTo(11 / HASH_W);
+    expect(b.y).toBeCloseTo(3 / HASH_H);
+  });
+  it("returns null when content fills the frame", () => {
+    const rgba = new Uint8ClampedArray(HASH_W * HASH_H * 4).map((_, i) => (i % 4 === 3 ? 255 : (i * 37) % 255));
+    expect(contentBox(rgba)).toBeNull();
   });
 });

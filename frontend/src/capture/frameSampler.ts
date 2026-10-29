@@ -2,7 +2,7 @@
 // scene detection; full frames are only encoded when an item needs to be understood.
 // Frames live in memory only and are never stored.
 
-import { HASH_H, HASH_W } from "./sceneChange";
+import { contentBox, HASH_H, HASH_W } from "./sceneChange";
 
 const TICK_WORKER = `let id=null;onmessage=(e)=>{clearInterval(id);if(e.data>0)id=setInterval(()=>postMessage(0),e.data)}`;
 
@@ -72,20 +72,30 @@ export class FrameSampler {
     return ctx.getImageData(0, 0, HASH_W, HASH_H).data;
   }
 
-  /** JPEG data URL of the current frame, scaled so the long edge is at most `edge`. */
-  grabFrame(edge = this.opts.maxEdge, quality = this.opts.jpegQuality): string | null {
+  /**
+   * JPEG data URL of the current frame (optionally a sub-region given as fractions), scaled so
+   * the long edge is at most `edge`.
+   */
+  grabFrame(
+    edge = this.opts.maxEdge,
+    quality = this.opts.jpegQuality,
+    crop: { x: number; y: number; w: number; h: number } | null = null,
+  ): string | null {
     if (!this.ready()) return null;
-    const { videoWidth: w, videoHeight: h } = this.video;
-    const scale = Math.min(1, edge / Math.max(w, h));
-    this.frameCanvas.width = Math.round(w * scale);
-    this.frameCanvas.height = Math.round(h * scale);
+    const { videoWidth: vw, videoHeight: vh } = this.video;
+    const c = crop ?? { x: 0, y: 0, w: 1, h: 1 };
+    const sx = c.x * vw, sy = c.y * vh, sw = c.w * vw, sh = c.h * vh;
+    const scale = Math.min(1, edge / Math.max(sw, sh));
+    this.frameCanvas.width = Math.max(1, Math.round(sw * scale));
+    this.frameCanvas.height = Math.max(1, Math.round(sh * scale));
     const ctx = this.frameCanvas.getContext("2d")!;
-    ctx.drawImage(this.video, 0, 0, this.frameCanvas.width, this.frameCanvas.height);
+    ctx.drawImage(this.video, sx, sy, sw, sh, 0, 0, this.frameCanvas.width, this.frameCanvas.height);
     return this.frameCanvas.toDataURL("image/jpeg", quality);
   }
 
-  grabThumb(): string | null {
-    return this.grabFrame(this.opts.thumbEdge, 0.6);
+  /** Small thumbnail, cropped to the main content when it can be found. */
+  grabThumb(rgba?: Uint8ClampedArray): string | null {
+    return this.grabFrame(this.opts.thumbEdge, 0.6, rgba ? contentBox(rgba) : null);
   }
 }
 

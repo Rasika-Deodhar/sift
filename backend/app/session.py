@@ -28,7 +28,8 @@ from .models import (
 from .pipeline import curate
 from .pipeline.dedup import PhashCache
 from .pipeline.queue import ItemQueue, Job
-from .pipeline.understand import UnderstandError, understand
+from .pipeline.understand import PROMPTS, UnderstandError, understand
+from .summary import build_summary, narrate
 
 log = logging.getLogger("sift.session")
 
@@ -102,6 +103,18 @@ class SessionManager:
         await self.queue.stop()
         if self.client:
             await self.client.aclose()
+
+    async def summary(self, narrative: bool = False) -> dict:
+        if self.session is None:
+            return {"session": None}
+        items = self.db.list_items(self.session.id)
+        cards = self.db.list_cards(self.session.id)
+        out = build_summary(items, cards, self.interest)
+        out["session"] = self.session.model_dump()
+        if narrative:
+            system = (PROMPTS / "digest_system.md").read_text()
+            out["digest"] = await narrate(self.client, out, system)
+        return out
 
     # --- websocket -----------------------------------------------------------------------
 
@@ -232,7 +245,8 @@ class SessionManager:
             self.db.upsert_item(item)
             await self._status(item, error="no post visible")
             return
-        card = curate.build_card(item.id, u, self.interest)
+        recent = [c.topics for c in self.db.list_cards(self.session.id)]
+        card = curate.build_card(item.id, u, self.interest, recent_topics=recent)
         await self._publish(item, card, ItemStatus.deduped if hit else ItemStatus.ready)
 
     async def _publish(self, item: Item, card: ItemCard, status: ItemStatus) -> None:

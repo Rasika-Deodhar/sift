@@ -63,6 +63,63 @@ export function colorSignature(rgba: ArrayLike<number>, w = HASH_W, h = HASH_H, 
   return hex;
 }
 
+/**
+ * Bounding box of the "content" in a thumbnail: cells that differ clearly from the background
+ * color (estimated from the border). Returned as fractions of the frame, or null if the content
+ * fills the frame. Used to crop thumbnails to the post instead of the page around it.
+ */
+export function contentBox(
+  rgba: ArrayLike<number>,
+  w = HASH_W,
+  h = HASH_H,
+  threshold = 28,
+): { x: number; y: number; w: number; h: number } | null {
+  const border: number[][] = [];
+  for (let x = 0; x < w; x++) for (const y of [0, h - 1]) border.push(px(rgba, w, x, y));
+  for (let y = 0; y < h; y++) for (const x of [0, w - 1]) border.push(px(rgba, w, x, y));
+  const bg = [0, 1, 2].map((c) => median(border.map((p) => p[c])));
+  const on: boolean[] = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = px(rgba, w, x, y);
+      on.push(Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]) > threshold);
+    }
+  }
+  // Keep columns that are mostly content (drops headers and side text), then rows that are
+  // mostly content within those columns.
+  const cols: number[] = [];
+  for (let x = 0; x < w; x++) {
+    let n = 0;
+    for (let y = 0; y < h; y++) n += on[y * w + x] ? 1 : 0;
+    if (n >= h * 0.25) cols.push(x);
+  }
+  if (cols.length === 0) return null;
+  let x0 = cols[0], x1 = cols[cols.length - 1], y0 = h, y1 = -1;
+  for (let y = 0; y < h; y++) {
+    let n = 0;
+    for (let x = x0; x <= x1; x++) n += on[y * w + x] ? 1 : 0;
+    if (n >= (x1 - x0 + 1) * 0.3) {
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+    }
+  }
+  if (y1 < 0) return null;
+  x0 = Math.max(0, x0 - 1); y0 = Math.max(0, y0 - 1);
+  x1 = Math.min(w - 1, x1 + 1); y1 = Math.min(h - 1, y1 + 1);
+  const box = { x: x0 / w, y: y0 / h, w: (x1 - x0 + 1) / w, h: (y1 - y0 + 1) / h };
+  return box.w * box.h > 0.8 || box.w * box.h < 0.03 ? null : box;
+}
+
+function px(rgba: ArrayLike<number>, w: number, x: number, y: number): number[] {
+  const i = (y * w + x) * 4;
+  return [rgba[i], rgba[i + 1], rgba[i + 2]];
+}
+
+function median(v: number[]): number {
+  const s = [...v].sort((a, b) => a - b);
+  return s[s.length >> 1];
+}
+
 /** Standard deviation of the grayscale thumbnail; near-zero means a blank / loading frame. */
 export function contrast(gray: ArrayLike<number>): number {
   let sum = 0;

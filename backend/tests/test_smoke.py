@@ -45,6 +45,11 @@ def test_frames_to_card_over_websocket(tmp_path, monkeypatch):
             assert card["item_id"] == "a1"
             assert card["topics"] == ["cycling", "bike maintenance"]
             assert card["category"] == "Tutorials & How-to"
+            assert card["tier"] == "highlight" and card["value_score"] == 8
+            summary = c.get("/session/summary").json()
+            assert summary["items_analyzed"] == 1 and summary["highlighted"] == 1
+            assert summary["top_picks"][0]["item_id"] == "a1"
             # Clear removes everything.
             c.post("/session/clear")
             assert c.get("/health").json()["cache"]["size"] == 0
+            assert c.get("/session/summary").json() == {"session": None}
