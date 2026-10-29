@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     meta_base_url: str = Field(default="https://api.meta.ai/v1", alias="META_BASE_URL")
     vision_model: str = Field(default="muse-spark-1.3", alias="SIFT_VISION_MODEL")
     text_model: str = Field(default="muse-spark-1.3", alias="SIFT_TEXT_MODEL")
-    transcribe_model: str = Field(default="muse-voice-transcribe-1.0", alias="SIFT_TRANSCRIBE_MODEL")
+    transcribe_model: str = Field(
+        default="muse-voice-transcribe-1.0", alias="SIFT_TRANSCRIBE_MODEL"
+    )
     segment_model: str = Field(default="sam-3.1", alias="SIFT_SEGMENT_MODEL")
     request_timeout_s: float = Field(default=45.0, alias="SIFT_REQUEST_TIMEOUT_S")
 

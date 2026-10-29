@@ -14,9 +14,10 @@ export type Action =
   | { type: "revisit"; id: string }
   | { type: "dwell"; id: string; dwellMs: number }
   | { type: "status"; id: string; status: ItemStatus; error?: string; duplicateOf?: string | null }
-  | { type: "card"; card: ItemCard }
+  | { type: "card"; card: ItemCard; status?: ItemStatus }
   | { type: "action"; id: string; action: UiItem["userAction"] }
   | { type: "interest"; model: InterestModel }
+  | { type: "hydrate"; items: UiItem[]; cards: ItemCard[]; interest: InterestModel | null }
   | { type: "reset" };
 
 export function reducer(s: State, a: Action): State {
@@ -39,8 +40,18 @@ export function reducer(s: State, a: Action): State {
       return patch(a.id, { dwellMs: a.dwellMs });
     case "status":
       return patch(a.id, { status: a.status, error: a.error, duplicateOf: a.duplicateOf });
-    case "card":
-      return patch(a.card.item_id, { card: a.card, status: "ready" });
+    case "card": {
+      const it = s.items[a.card.item_id];
+      if (!it) return s;
+      const status = a.status ?? (it.status === "deduped" ? "deduped" : "ready");
+      return patch(a.card.item_id, { card: a.card, status });
+    }
+    case "hydrate": {
+      const items: Record<string, UiItem> = {};
+      for (const it of a.items) items[it.id] = it;
+      for (const c of a.cards) if (items[c.item_id]) items[c.item_id].card = c;
+      return { items, order: a.items.map((i) => i.id), interest: a.interest, prevInterest: null };
+    }
     case "action":
       return patch(a.id, { userAction: a.action });
     case "interest":

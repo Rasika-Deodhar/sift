@@ -42,15 +42,21 @@ if (debug) console.log("feed position", await feed.evaluate(() => { const f = do
 if (shots) await sift.screenshot({ path: `${shots}/sift.png`, fullPage: true });
 const summary = await sift.evaluate(() => ({
   detected: document.querySelectorAll("[data-item-id]").length,
-  revisited: [...document.querySelectorAll("[data-item-id]")].filter((e) => /visits [2-9]/.test(e.textContent ?? "")).length,
-  text: document.querySelector(".stream")?.textContent?.slice(0, 400),
+  revisited: [...document.querySelectorAll("[data-item-id]")].filter((e) => /[2-9] visits/.test(e.textContent ?? "")).length,
+  cards: document.querySelectorAll("[data-item-id] .reason").length,
+  picks: document.querySelectorAll(".tier-highlight").length,
+  skipped: Number(document.querySelector(".skipped-toggle")?.textContent?.match(/Skipped \((\d+)\)/)?.[1] ?? 0),
+  reasons: [...document.querySelectorAll("[data-item-id] .reason")].map((e) => e.textContent).slice(0, 12),
 }));
 console.log(JSON.stringify(summary, null, 1));
 await sift.getByRole("button", { name: "Stop" }).click();
 await sift.getByRole("button", { name: "Start Sift" }).waitFor({ timeout: 5000 });
 console.log("stopped OK");
 await browser.close();
-if (summary.detected !== posts + 1 || summary.revisited < 1) {
-  console.error(`expected ${posts + 1} items and a revisit, saw ${summary.detected} / ${summary.revisited}`);
+// Items collapsed into "Skipped" are not rendered until expanded, so count them too.
+const total = summary.detected + summary.skipped;
+const expectCards = process.env.EXPECT_CARDS !== "0";
+if (total !== posts + 1 || summary.revisited < 1 || (expectCards && summary.cards + summary.skipped < posts + 1)) {
+  console.error(`expected ${posts + 1} items (all analyzed) and a revisit; got ${JSON.stringify(summary)}`);
   process.exit(1);
 }

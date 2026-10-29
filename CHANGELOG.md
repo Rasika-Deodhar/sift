@@ -11,3 +11,9 @@ Hackathon building window (Oct 27 to Nov 4, 2026).
   dHash, motion classifier (scroll vs. in-place change), scene detector with stability window,
   color-aware revisit dedup, dwell tracker, live preview and detected-items list. Vitest suite
   over a Playwright-recorded Demo Feed scroll fixture; browser e2e smoke script.
+- M2 Understand: `meta_client.py` (httpx, OpenAI-compatible Chat Completions with strict
+  JSON-schema output and JSON-mode fallback, 429/5xx backoff, Voice Transcribe multipart, SAM
+  Responses call, optional Muse Spark Open on Baseten, offline mock), understanding prompt +
+  Pydantic validation with one retry, phash + color-signature dedup cache, bounded newest-first
+  queue with backpressure and stale drops, session manager and WebSocket protocol, live stream
+  cards in the UI.

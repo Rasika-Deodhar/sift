@@ -63,6 +63,7 @@ class Item(BaseModel):
     id: str
     session_id: str
     phash: str
+    sig: str = ""  # small color signature (hex), used only for dedup
     first_seen_at: int
     last_seen_at: int
     dwell_ms: int = 0
@@ -74,6 +75,7 @@ class Item(BaseModel):
 class UnderstandResult(BaseModel):
     """Strict shape we ask Muse Spark to return for one on-screen post."""
 
+    is_post: bool = True
     summary: str = Field(min_length=1, max_length=400)
     topics: list[str] = Field(min_length=1, max_length=6)
     format: ItemFormat

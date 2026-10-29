@@ -43,6 +43,26 @@ export function meanAbsDiff(a: ArrayLike<number>, b: ArrayLike<number>): number 
   return d / a.length;
 }
 
+/**
+ * Coarse color signature: the RGBA thumbnail averaged down to a `cells` x `cells` RGB grid, as
+ * hex (one byte per channel). Lets the backend tell apart posts with the same layout.
+ */
+export function colorSignature(rgba: ArrayLike<number>, w = HASH_W, h = HASH_H, cells = 8): string {
+  let hex = "";
+  for (let cy = 0; cy < cells; cy++) {
+    for (let cx = 0; cx < cells; cx++) {
+      const x0 = Math.floor((cx * w) / cells), x1 = Math.floor(((cx + 1) * w) / cells);
+      const y0 = Math.floor((cy * h) / cells), y1 = Math.floor(((cy + 1) * h) / cells);
+      for (let ch = 0; ch < 3; ch++) {
+        let sum = 0, n = 0;
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++, n++) sum += rgba[(y * w + x) * 4 + ch];
+        hex += Math.round(sum / Math.max(1, n)).toString(16).padStart(2, "0");
+      }
+    }
+  }
+  return hex;
+}
+
 /** Standard deviation of the grayscale thumbnail; near-zero means a blank / loading frame. */
 export function contrast(gray: ArrayLike<number>): number {
   let sum = 0;

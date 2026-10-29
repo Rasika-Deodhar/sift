@@ -3,13 +3,14 @@
 
 import { DwellTracker } from "./dwell";
 import { FrameSampler } from "./frameSampler";
-import { SceneDetector } from "./sceneChange";
+import { colorSignature, SceneDetector } from "./sceneChange";
 import { onShareEnded, startScreenShare, stopStream } from "./screenShare";
 
 export interface ItemEnter {
   itemId: string;
   isNew: boolean;
   phash: string;
+  sig: string;
   frame: string | null;
   thumb: string | null;
   at: number; // wall-clock ms
@@ -34,9 +35,23 @@ export class CaptureSession {
     this.sampler = new FrameSampler(stream);
   }
 
-  static async start(opts: { audio: boolean }, cb: CaptureCallbacks): Promise<CaptureSession> {
+  /**
+   * Opens the browser's share picker (must run inside the click handler's user activation),
+   * then runs `beforeSampling` (e.g. starting the backend session) before any frame is read.
+   */
+  static async start(
+    opts: { audio: boolean },
+    cb: CaptureCallbacks,
+    beforeSampling?: (s: CaptureSession) => Promise<void>,
+  ): Promise<CaptureSession> {
     const stream = await startScreenShare(opts);
     const s = new CaptureSession(stream, cb);
+    try {
+      await beforeSampling?.(s);
+    } catch (e) {
+      stopStream(stream);
+      throw e;
+    }
     onShareEnded(stream, () => s.stop());
     await s.sampler.start((gray, t, rgba) => s.tick(gray, t, rgba));
     return s;
@@ -63,6 +78,7 @@ export class CaptureSession {
           itemId: ev.itemId,
           isNew: ev.isNew,
           phash: ev.hash,
+          sig: colorSignature(rgba),
           frame: ev.isNew ? this.sampler.grabFrame() : null,
           thumb: ev.isNew ? this.sampler.grabThumb() : null,
           at: Date.now(),
