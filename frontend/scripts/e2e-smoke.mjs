@@ -20,6 +20,7 @@ const browser = await chromium.launch({
 const ctx = await browser.newContext({ viewport: { width: 1200, height: 860 } });
 const feed = await ctx.newPage();
 await feed.goto(`${BASE}/demo/`);
+await feed.mouse.click(5, 300); // a user gesture, so reels play with sound
 const sift = await ctx.newPage();
 const debug = !!process.env.SIFT_DEBUG;
 sift.on("console", (m) => (m.type() === "error" || (debug && m.type() === "debug")) && console.log("[sift console]", m.text()));
@@ -47,6 +48,14 @@ if (await saveBtn.count()) {
   await sift.locator(".interest-strip .chip.like").first().waitFor({ timeout: 5000 });
 }
 if (shots) await sift.screenshot({ path: `${shots}/sift.png`, fullPage: true });
+// Categorize: lanes view groups the same items.
+await sift.getByRole("button", { name: "Categorize" }).click();
+await sift.locator(".lane").first().waitFor({ timeout: 3000 });
+const lanes = await sift.evaluate(() =>
+  [...document.querySelectorAll(".lane")].map((l) => `${l.getAttribute("data-lane")}:${l.querySelector(".lane-count")?.textContent}`),
+);
+if (shots) await sift.screenshot({ path: `${shots}/lanes.png`, fullPage: true });
+await sift.getByRole("button", { name: "Categorize" }).click();
 const skippedN = Number((await sift.locator(".skipped-toggle").textContent().catch(() => ""))?.match(/Skipped \((\d+)\)/)?.[1] ?? 0);
 if (skippedN) await sift.locator(".skipped-toggle").click(); // expand so every item is countable
 const summary = await sift.evaluate(() => ({
@@ -55,6 +64,7 @@ const summary = await sift.evaluate(() => ({
   cards: document.querySelectorAll("[data-item-id] .reason").length,
   likes: [...document.querySelectorAll(".interest-strip .chip.like")].map((e) => e.textContent),
   reranked: document.querySelectorAll(".chip.delta").length,
+  transcripts: document.querySelectorAll(".chip.audio").length,
   picks: document.querySelectorAll(".tier-highlight").length,
   failed: document.querySelectorAll(".failed [data-item-id]").length,
   reasons: [...document.querySelectorAll("[data-item-id] .reason")].map((e) => e.textContent).slice(0, 12),
@@ -65,6 +75,12 @@ await sift.getByRole("button", { name: "Start Sift" }).waitFor({ timeout: 5000 }
 console.log("stopped OK");
 await browser.close();
 summary.skipped = skippedN;
+console.log("lanes", lanes.join(" | "));
+const laneTotal = lanes.reduce((n, l) => n + Number(l.split(":").pop()), 0);
+if (laneTotal !== summary.cards) {
+  console.error(`lanes hold ${laneTotal} items, stream has ${summary.cards}`);
+  process.exit(1);
+}
 const expectCards = process.env.EXPECT_CARDS !== "0";
 if (summary.detected !== posts + 1 || summary.revisited < 1 || (expectCards && summary.cards < posts + 1)) {
   console.error(`expected ${posts + 1} items (all analyzed) and a revisit; got ${JSON.stringify(summary)}`);

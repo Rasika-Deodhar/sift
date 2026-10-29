@@ -98,6 +98,11 @@ def interest_diff(from_: int = Query(alias="from"), to: int = Query()) -> dict:
         raise HTTPException(404, str(e)) from e
 
 
+@app.get("/categories/other-name")
+async def other_lane_name() -> dict:
+    return {"name": await manager().other_lane_name()}
+
+
 @app.get("/session/summary")
 async def session_summary(narrative: bool = False) -> dict:
     return await manager().summary(narrative)

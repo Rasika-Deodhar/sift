@@ -1,6 +1,7 @@
 // Wires screen share -> frame sampler -> scene detector -> dwell tracker, and reports item
 // events to the app. Everything here runs in the user's browser.
 
+import { AudioChunker } from "./audioChunks";
 import { DwellTracker } from "./dwell";
 import { FrameSampler } from "./frameSampler";
 import { colorSignature, SceneDetector } from "./sceneChange";
@@ -20,6 +21,7 @@ export interface CaptureCallbacks {
   onItemEnter(e: ItemEnter): void;
   onItemLeave(e: { itemId: string; dwellMs: number }): void;
   onMidFrame(e: { itemId: string; frame: string }): void;
+  onAudioChunk(e: { itemId: string; wav: string }): void;
   onEnded(): void;
 }
 
@@ -29,6 +31,7 @@ export class CaptureSession {
   readonly dwell = new DwellTracker();
   private detector = new SceneDetector({ newId: () => crypto.randomUUID() });
   private stopped = false;
+  private audio: AudioChunker | null = null;
 
   private constructor(stream: MediaStream, private cb: CaptureCallbacks) {
     this.stream = stream;
@@ -53,6 +56,9 @@ export class CaptureSession {
       throw e;
     }
     onShareEnded(stream, () => s.stop());
+    if (s.hasAudio) {
+      s.audio = new AudioChunker(stream, (itemId, wav) => cb.onAudioChunk({ itemId, wav }));
+    }
     await s.sampler.start((gray, t, rgba) => s.tick(gray, t, rgba));
     return s;
   }
@@ -74,6 +80,7 @@ export class CaptureSession {
     for (const ev of events) {
       if (ev.kind === "enter") {
         this.dwell.enter(ev.itemId, t);
+        this.audio?.setItem(ev.itemId);
         this.cb.onItemEnter({
           itemId: ev.itemId,
           isNew: ev.isNew,
@@ -84,6 +91,7 @@ export class CaptureSession {
           at: Date.now(),
         });
       } else if (ev.kind === "leave") {
+        this.audio?.setItem(null);
         const d = this.dwell.leave(t);
         if (d) this.cb.onItemLeave(d);
       } else {
@@ -108,6 +116,8 @@ export class CaptureSession {
         if (d) this.cb.onItemLeave(d);
       }
     }
+    this.audio?.stop();
+    this.audio = null;
     this.sampler.stop();
     stopStream(this.stream);
     this.cb.onEnded();

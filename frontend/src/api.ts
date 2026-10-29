@@ -62,6 +62,7 @@ export const api = {
   signal: (item_id: string, type: string) => post("/signal", { item_id, type }),
   summary: <T>(narrative = false) => get<T>(`/session/summary${narrative ? "?narrative=true" : ""}`),
   interestVersions: <T>() => get<T>("/interest/versions"),
+  otherLaneName: () => get<{ name: string | null }>("/categories/other-name"),
   interestDiff: <T>(from: number, to: number) => get<T>(`/interest/diff?from=${from}&to=${to}`),
 };
 

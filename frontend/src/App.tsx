@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, StreamSocket, type ServerMessage } from "./api";
 import { CaptureSession } from "./capture/captureSession";
 import Controls from "./components/Controls";
+import CategoryLanes from "./components/CategoryLanes";
 import CuratedStream from "./components/CuratedStream";
 import InterestStrip from "./components/InterestStrip";
 import SessionSummary from "./components/SessionSummary";
@@ -51,6 +52,7 @@ export default function App() {
   const [server, setServer] = useState<{ mock: boolean; modelReady: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(false);
+  const [lanes, setLanes] = useState(false);
   const capture = useRef<CaptureSession | null>(null);
   const socket = useRef<StreamSocket | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -98,6 +100,7 @@ export default function App() {
             dispatch({ type: "dwell", id: e.itemId, dwellMs: e.dwellMs });
             send({ type: "dwell", item_id: e.itemId, dwell_ms: Math.round(e.dwellMs) });
           },
+          onAudioChunk: (e) => send({ type: "audio_chunk", item_id: e.itemId, wav: e.wav }),
           onMidFrame: (e) => send({ type: "item_frames", item_id: e.itemId, phash: "", frames: [e.frame], extra: true }),
           onEnded: () => {
             capture.current = null;
@@ -175,7 +178,21 @@ export default function App() {
         </aside>
         <main className="stream">
           <InterestStrip interest={state.interest} lastChange={state.lastChange} />
-          <CuratedStream items={items} liveId={liveId} liveDwell={liveDwell} onSignal={onSignal} />
+          <div className="stream-bar">
+            <span className="muted small">{lanes ? "Grouped by category" : "Curated stream"}</span>
+            <button
+              className={`btn small ${lanes ? "on" : ""}`}
+              aria-pressed={lanes}
+              onClick={() => setLanes((v) => !v)}
+            >
+              Categorize
+            </button>
+          </div>
+          {lanes ? (
+            <CategoryLanes items={items} liveId={liveId} liveDwell={liveDwell} onSignal={onSignal} />
+          ) : (
+            <CuratedStream items={items} liveId={liveId} liveDwell={liveDwell} onSignal={onSignal} />
+          )}
         </main>
       </div>
       {showSummary && <SessionSummary onClose={() => setShowSummary(false)} />}

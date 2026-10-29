@@ -28,3 +28,8 @@ Hackathon building window (Oct 27 to Nov 4, 2026).
   `GET /interest/diff`; live re-ranking pushes `item_update`s; interest strip with "what
   changed" flashes and a before/after table; re-ranked cards show their score delta. Fixed the
   score blend so liking a topic can only raise items on it.
+- M5 Audio + Categorize: tab audio captured per on-screen item, resampled to 16 kHz mono WAV in
+  the browser (silent chunks dropped, max 3 chunks per item), transcribed with Muse Voice
+  Transcribe and folded into the card by Muse Spark (summary, topics, reason, evidence quote
+  from speech), then re-scored. Categorize toggle with live, collapsible category lanes and
+  counts; Muse Spark names the "Other" lane once it grows.

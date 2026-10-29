@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import WebSocket
 
 from . import interest as interest_mod
+from .categories import suggest_other_name
 from .config import Settings
 from .db import Database
 from .meta_client import MetaAPIError, ModelClient, RateLimited, decode_data_url
@@ -29,6 +30,7 @@ from .models import (
     now_ms,
 )
 from .pipeline import curate
+from .pipeline.audio import refine_with_transcript, transcribe_chunk
 from .pipeline.dedup import PhashCache
 from .pipeline.queue import ItemQueue, Job
 from .pipeline.understand import PROMPTS, UnderstandError, understand
@@ -39,6 +41,8 @@ log = logging.getLogger("sift.session")
 MAX_FRAME_BYTES = 1_500_000
 MAX_THUMB_BYTES = 40_000
 MAX_FRAMES = 3
+MAX_AUDIO_CHUNKS_PER_ITEM = 3
+MAX_AUDIO_B64 = 1_400_000
 
 
 class SessionManager:
@@ -55,6 +59,10 @@ class SessionManager:
         self._lock = asyncio.Lock()
         self._learn_lock = asyncio.Lock()
         self._dwell_applied: set[str] = set()
+        self.transcripts: dict[str, list[str]] = {}
+        self._audio_counts: dict[str, int] = {}
+        self._audio_sem = asyncio.Semaphore(2)
+        self._audio_tasks: set[asyncio.Task] = set()
 
     def _new_queue(self) -> ItemQueue:
         return ItemQueue(
@@ -104,6 +112,11 @@ class SessionManager:
         self.cache.clear()
         self.items.clear()
         self._dwell_applied.clear()
+        for t in list(self._audio_tasks):
+            t.cancel()
+        self._audio_tasks.clear()
+        self.transcripts.clear()
+        self._audio_counts.clear()
 
     async def shutdown(self) -> None:
         await self.queue.stop()
@@ -155,6 +168,8 @@ class SessionManager:
             await self.on_item_frames(msg)
         elif kind == "dwell":
             await self.on_dwell(str(msg["item_id"]), int(msg.get("dwell_ms", 0)))
+        elif kind == "audio_chunk":
+            await self.on_audio_chunk(str(msg["item_id"])[:64], str(msg.get("wav", "")))
         elif kind == "signal":
             await self.on_signal(str(msg["item_id"]), SignalType(msg["signal"]),
                                  float(msg.get("value", 1.0)))
@@ -207,6 +222,60 @@ class SessionManager:
         item.last_seen_at = now_ms()
         self.db.upsert_item(item)
         await self._maybe_learn_dwell(item)
+
+    # --- audio ---------------------------------------------------------------------------
+
+    async def on_audio_chunk(self, item_id: str, wav_data_url: str) -> None:
+        if self.client is None or item_id not in self.items or len(wav_data_url) > MAX_AUDIO_B64:
+            return
+        n = self._audio_counts.get(item_id, 0)
+        if n >= MAX_AUDIO_CHUNKS_PER_ITEM:
+            return
+        self._audio_counts[item_id] = n + 1
+        wav = decode_data_url(wav_data_url, 1_000_000)
+        task = asyncio.create_task(self._transcribe(item_id, wav))
+        self._audio_tasks.add(task)
+        task.add_done_callback(self._audio_tasks.discard)
+
+    async def _transcribe(self, item_id: str, wav: bytes) -> None:
+        async with self._audio_sem:
+            try:
+                text = await transcribe_chunk(self.client, wav)  # type: ignore[arg-type]
+            except (MetaAPIError, ValueError) as e:
+                log.warning("transcription failed for %s: %s", item_id, e)
+                return
+            if not text:
+                return
+            self.transcripts.setdefault(item_id, []).append(text)
+            card = self.db.get_card(item_id)
+            if card is not None:
+                await self._merge_transcript(card)
+
+    async def _merge_transcript(self, card: ItemCard) -> None:
+        """Folds the item's transcript into its card (re-scored) and pushes the update."""
+        assert self.session is not None and self.client is not None
+        transcript = " ".join(self.transcripts.get(card.item_id, []))
+        if not transcript or card.transcript == transcript:
+            return
+        r = await refine_with_transcript(self.client, card, transcript)
+        update: dict[str, Any] = {"transcript": transcript}
+        if r is not None:
+            update.update(summary=r.summary, topics=[t.lower().strip() for t in r.topics],
+                          quality_signals=r.quality_signals,
+                          intrinsic_quality=r.intrinsic_quality, reason=r.reason,
+                          evidence_snippet=r.evidence_snippet)
+        new = curate.rescore(card.model_copy(update=update), self.interest)
+        self.db.save_card(self.session.id, new, now_ms())
+        await self.broadcast({"type": "item_update", "card": new.model_dump(),
+                              "prev_score": card.value_score, "prev_tier": card.tier,
+                              "cause": "transcript"})
+
+    # --- categories ----------------------------------------------------------------------
+
+    async def other_lane_name(self) -> str | None:
+        if self.session is None:
+            return None
+        return await suggest_other_name(self.client, self.db.list_cards(self.session.id))
 
     # --- learning ------------------------------------------------------------------------
 
@@ -299,13 +368,14 @@ class SessionManager:
         await self._status(item)
 
         hit = self.cache.lookup(job.phash, job.sig) if job.phash else None
+        used_transcript = " ".join(self.transcripts.get(item.id, [])) or None
         try:
             if hit is not None:
                 owner, u = hit
                 item.duplicate_of = owner
             else:
                 assert self.client is not None
-                u = await understand(self.client, job.frames, self.interest)
+                u = await understand(self.client, job.frames, self.interest, used_transcript)
                 if job.phash:
                     self.cache.put(job.phash, item.id, u, job.sig)
         except (UnderstandError, MetaAPIError) as e:
@@ -323,8 +393,11 @@ class SessionManager:
             await self._status(item, error="no post visible")
             return
         recent = [c.topics for c in self.db.list_cards(self.session.id)]
-        card = curate.build_card(item.id, u, self.interest, recent_topics=recent)
+        card = curate.build_card(item.id, u, self.interest, used_transcript, recent_topics=recent)
         await self._publish(item, card, ItemStatus.deduped if hit else ItemStatus.ready)
+        if self.transcripts.get(item.id) and hit is None:
+            # Speech that arrived while the frames were being analyzed.
+            await self._merge_transcript(card)
 
     async def _publish(self, item: Item, card: ItemCard, status: ItemStatus) -> None:
         assert self.session is not None
