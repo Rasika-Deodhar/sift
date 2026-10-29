@@ -24,6 +24,7 @@ log = logging.getLogger("sift")
 async def lifespan(app: FastAPI):
     settings = get_settings()
     db = Database(settings.db_path)
+    db.clear_all()  # nothing from a previous run survives a restart
     client = getattr(app.state, "client_override", None) or make_client(settings)
     if client is None:
         log.warning("MODEL_API_KEY is not set: capture works, but items will not be analyzed")

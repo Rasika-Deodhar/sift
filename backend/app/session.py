@@ -77,6 +77,8 @@ class SessionManager:
     async def start(self, consent: bool, focus_hint: str | None, audio: bool) -> Session:
         async with self._lock:
             await self._reset_runtime()
+            # Session-scoped storage: a new session starts from an empty database.
+            self.db.clear_all()
             sid = uuid.uuid4().hex[:12]
             hint = [w.strip().lower() for w in (focus_hint or "").split(",") if w.strip()][:8]
             self.session = Session(
@@ -346,10 +348,15 @@ class SessionManager:
 
     # --- pipeline ------------------------------------------------------------------------
 
+    def pipeline_stats(self) -> dict:
+        return {"pending": self.queue.pending, "active": self.queue.active,
+                "dropped": self.queue.dropped, "processed": self.queue.processed,
+                "cache_hits": self.cache.hits}
+
     async def _status(self, item: Item, error: str | None = None) -> None:
         await self.broadcast({
             "type": "item_status", "item_id": item.id, "status": item.status.value,
-            "duplicate_of": item.duplicate_of, "error": error,
+            "duplicate_of": item.duplicate_of, "error": error, "pipeline": self.pipeline_stats(),
         })
 
     async def _dropped(self, job: Job, why: str) -> None:

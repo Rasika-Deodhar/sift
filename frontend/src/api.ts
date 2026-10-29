@@ -13,12 +13,20 @@ export type ServerMessage =
       interest: InterestModel;
     }
   | { type: "session"; session: { id: string; stopped_at: number | null } }
-  | { type: "item_status"; item_id: string; status: ItemStatus; duplicate_of?: string | null; error?: string | null }
+  | { type: "item_status"; item_id: string; status: ItemStatus; duplicate_of?: string | null; error?: string | null; pipeline?: PipelineStats }
   | { type: "item_card"; card: ItemCard; status: ItemStatus; duplicate_of?: string | null }
   | { type: "item_update"; card: ItemCard; prev_score: number; prev_tier: string }
   | { type: "interest_update"; model: InterestModel; cause: string; changes?: InterestChange[] }
   | { type: "cleared" }
   | { type: "error"; message: string };
+
+export interface PipelineStats {
+  pending: number;
+  active: number;
+  dropped: number;
+  processed: number;
+  cache_hits: number;
+}
 
 export interface InterestChange {
   key: string;

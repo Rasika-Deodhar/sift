@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { api, StreamSocket, type ServerMessage } from "./api";
+import { api, StreamSocket, type PipelineStats, type ServerMessage } from "./api";
 import { CaptureSession } from "./capture/captureSession";
 import Controls from "./components/Controls";
 import CategoryLanes from "./components/CategoryLanes";
@@ -53,6 +53,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [lanes, setLanes] = useState(false);
+  const [pipeline, setPipeline] = useState<PipelineStats | null>(null);
   const capture = useRef<CaptureSession | null>(null);
   const socket = useRef<StreamSocket | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -64,6 +65,8 @@ export default function App() {
     s.onMessage = (m) => {
       if (m.type === "hello") setServer({ mock: m.mock, modelReady: m.model_ready });
       if (m.type === "error") setError(m.message);
+      if (m.type === "item_status" && m.pipeline) setPipeline(m.pipeline);
+      if (m.type === "cleared") setPipeline(null);
       const a = toAction(m);
       if (a) dispatch(a);
     };
@@ -171,10 +174,15 @@ export default function App() {
             <div className="preview-slot" ref={previewRef} />
             {!sharing && <p className="muted">Live preview appears here while sharing.</p>}
           </div>
-          <StatsPanel items={items} />
+          <StatsPanel items={items} pipeline={pipeline} />
           <button className="btn" disabled={items.length === 0} onClick={() => setShowSummary(true)}>
             Session digest
           </button>
+          <p className="privacy muted small">
+            Sift only sees the tab or window you share, only while sharing. Frames and audio are analyzed in memory by
+            Meta models and never saved; text cards and small thumbnails live until you clear the session or start a new
+            one.
+          </p>
         </aside>
         <main className="stream">
           <InterestStrip interest={state.interest} lastChange={state.lastChange} />
@@ -200,7 +208,7 @@ export default function App() {
   );
 }
 
-function StatsPanel({ items }: { items: UiItem[] }) {
+function StatsPanel({ items, pipeline }: { items: UiItem[]; pipeline: PipelineStats | null }) {
   const analyzed = items.filter((i) => i.card);
   const picks = analyzed.filter((i) => i.card!.tier === "highlight").length;
   const skipped = analyzed.filter((i) => i.card!.tier === "skipped" || i.userAction === "hide").length;
@@ -213,6 +221,14 @@ function StatsPanel({ items }: { items: UiItem[] }) {
         <div className="stat"><div className="n">{skipped}</div><div className="muted small">skipped</div></div>
       </div>
       {working > 0 && <p className="muted small working">Understanding {working} item{working > 1 ? "s" : ""} with Muse Spark…</p>}
+      {pipeline && pipeline.dropped > 0 && (
+        <p className="muted small working" title="The queue keeps the newest items when you scroll faster than the model">
+          {pipeline.dropped} skipped while scrolling fast
+        </p>
+      )}
+      {pipeline && pipeline.cache_hits > 0 && (
+        <p className="muted small working">{pipeline.cache_hits} repeat{pipeline.cache_hits > 1 ? "s" : ""} served from cache</p>
+      )}
     </div>
   );
 }

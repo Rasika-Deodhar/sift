@@ -34,6 +34,7 @@ test: backend/.venv frontend/node_modules
 lint: backend/.venv frontend/node_modules
 	cd backend && .venv/bin/ruff check app tests
 	cd frontend && npx tsc -b
+	./scripts/check-compliance.sh
 
 # Browser end-to-end smoke test (needs `make dev` running in another terminal).
 e2e:

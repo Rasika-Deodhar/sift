@@ -33,3 +33,7 @@ Hackathon building window (Oct 27 to Nov 4, 2026).
   Transcribe and folded into the card by Muse Spark (summary, topics, reason, evidence quote
   from speech), then re-scored. Categorize toggle with live, collapsible category lanes and
   counts; Muse Spark names the "Other" lane once it grows.
+- M6 Polish: derived data wiped on session start and backend start, pipeline stats in the UI
+  (queued, dropped while scrolling fast, cache hits), privacy copy, `scripts/check-compliance.sh`
+  in `make lint`, README with setup / architecture / models / privacy, `docs/architecture.md`,
+  `docs/demo-script.md`.
